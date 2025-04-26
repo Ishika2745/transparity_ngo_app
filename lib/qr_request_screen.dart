@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'qr_upload_page.dart';
 
 class QrRequestScreen extends StatefulWidget {
   const QrRequestScreen({super.key});
@@ -10,25 +9,34 @@ class QrRequestScreen extends StatefulWidget {
 }
 
 class _QrRequestScreenState extends State<QrRequestScreen> {
-  List<String> firmNames = [];
+  List<Map<String, dynamic>> requests = [];
   bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    fetchSocialFirms();
+    fetchRequests();
   }
 
-  Future<void> fetchSocialFirms() async {
-    final response = await Supabase.instance.client
-        .from('profiles')
-        .select('firm_name')
-        .eq('role', 'social_firm');
+  Future<void> fetchRequests() async {
+    final data = await Supabase.instance.client
+        .from('forms')
+        .select('id, firm_name, drive_purpose, submitted_by')
+        .eq('status', 'pending');
 
     setState(() {
-      firmNames = response.map<String>((e) => e['firm_name'] as String).toList();
+      requests = List<Map<String, dynamic>>.from(data);
       isLoading = false;
     });
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await Supabase.instance.client
+        .from('forms')
+        .update({'status': status})
+        .eq('id', id);
+
+    fetchRequests(); // Refresh after update
   }
 
   @override
@@ -36,100 +44,107 @@ class _QrRequestScreenState extends State<QrRequestScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('QR Code Requests'),
-        backgroundColor: const Color(0xFF004B8D), // Peacock Blue
+        backgroundColor: const Color(0xFF004B8D), // Your blue
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : firmNames.isEmpty
-              ? const Center(child: Text('No QR code requests yet.'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: firmNames.length,
-                  itemBuilder: (context, index) {
-                    final firmName = firmNames[index];
-                    return Card(
-                      elevation: 4,
-                      margin: const EdgeInsets.symmetric(vertical: 10),
-                      child: Padding(
-                        padding: const EdgeInsets.all(15.0),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Left Side: Firm Name + Check Details
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    firmName,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  TextButton(
-                                    onPressed: () {
-                                      _showFirmDetails(context, firmName);
-                                    },
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: Colors.blue,
-                                    ),
-                                    child: const Text(
-                                      'Check Details',
-                                      style: TextStyle(fontSize: 16),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+          : requests.isEmpty
+          ? const Center(child: Text('No pending requests'))
+          : ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: requests.length,
+        itemBuilder: (context, index) {
+          final request = requests[index];
+          final firmName = request['firm_name'] ?? 'Firm Name'; // changed ngoName to firmName
 
-                            // Right Side: Approve & Reject Buttons (Stacked)
-                            Column(
-                              children: [
-                                ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => QrUploadPage(
-                                          firmName: firmName,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                                  child: const Text('Approve', style: TextStyle(color: Colors.white)),
-                                ),
-                                const SizedBox(height: 8),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('$firmName Rejected')),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                  child: const Text('Reject', style: TextStyle(color: Colors.white)),
-                                ),
-                              ],
-                            ),
-                          ],
+          return Card(
+            elevation: 4,
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Left Side
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          firmName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () {
+                            _showDetailsDialog(context, request);
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.blue,
+                          ),
+                          child: const Text('Check Details'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Right Side (Approve + Reject Buttons)
+                  Column(
+                    children: [
+                      ElevatedButton(
+                        onPressed: () async {
+                          await updateStatus(request['id'], 'approved');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: const Text('Approve', style: TextStyle(color: Colors.white)),
                       ),
-                    );
-                  },
-                ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await updateStatus(request['id'], 'rejected');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: const Text('Reject', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
-  // Function to Show Firm Details in a Dialog Box
-  void _showFirmDetails(BuildContext context, String firmName) {
+  void _showDetailsDialog(BuildContext context, Map<String, dynamic> request) {
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Details of $firmName'),
-          content: const Text('Here you can show more details about the firm, such as its mission, past donations, and other relevant info.'),
+          title: Text(request['firm_name'] ?? 'Firm Name'), // still firm_name here
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Drive Purpose: ${request['drive_purpose'] ?? 'No Purpose'}'),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),

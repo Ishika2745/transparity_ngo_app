@@ -78,6 +78,14 @@ class _RequestQRFormScreenState extends State<RequestQRFormScreen> {
       );
       return;
     }
+// Fetch the NGO id based on the ngo_name
+    final response = await Supabase.instance.client
+        .from('profiles')
+        .select('id')
+        .eq('ngo_name', widget.ngoName)
+        .single();
+
+    final ngoId = response['id'];
 
     try {
       await Supabase.instance.client.from('forms').insert({
@@ -92,8 +100,9 @@ class _RequestQRFormScreenState extends State<RequestQRFormScreen> {
         'target_donation': double.tryParse(_donationGoalController.text),
         'volunteer_count': int.tryParse(_volunteerCountController.text),
         'activity_yesorno': _activityController.text.toLowerCase().contains("activity"),
-        'created_by': userId,
+        'submitted_by': userId,
         'ngo_name': widget.ngoName,
+        'ngo_id': ngoId,
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
