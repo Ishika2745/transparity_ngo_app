@@ -62,55 +62,57 @@ class _RequestQRFormScreenState extends State<RequestQRFormScreen> {
   }
 
   Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate() || _startDate == null || _endDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all fields')),
-      );
-      return;
-    }
-
-    final user = Supabase.instance.client.auth.currentUser;
-    final userId = user?.id;
-
-    if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User not logged in')),
-      );
-      return;
-    }
-
-    try {
-      await Supabase.instance.client.from('forms').insert({
-        'drive_purpose': _drivePurposeController.text,
-        'brief_about_the_drive': _briefAboutController.text,
-        'help_given': _helpGivenController.text,
-        '80G_available_ornot': _g80AvailableController.text,
-        'images': _imagesController.text,
-        'drive_locatin': _driveLocationController.text,
-        'start_date': _startDate!.toIso8601String(),
-        'end_date': _endDate!.toIso8601String(),
-        'target_donation': double.tryParse(_donationGoalController.text),
-        'volunteer_count': int.tryParse(_volunteerCountController.text),
-        'activity_yesorno': _activityController.text.toLowerCase().contains("activity"),
-        'created_by': userId,
-        'ngo_name': widget.ngoName,
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('QR Code Requested for ${widget.ngoName}')),
-      );
-
-      _formKey.currentState!.reset();
-      _startDateController.clear();
-      _endDateController.clear();
-      _startDate = null;
-      _endDate = null;
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting form: $e')),
-      );
-    }
+  if (!_formKey.currentState!.validate() || _startDate == null || _endDate == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please fill all fields')),
+    );
+    return;
   }
+
+  final user = Supabase.instance.client.auth.currentUser;
+  final userId = user?.id;
+
+  if (userId == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('User not logged in')),
+    );
+    return;
+  }
+
+  try {
+    await Supabase.instance.client.from('forms').insert({
+      'drive_purpose': _drivePurposeController.text,
+      'brief_about_the_drive': _briefAboutController.text,
+      'help_given': _helpGivenController.text,
+      '80G_available_ornot': _g80AvailableController.text,
+      'images': _imagesController.text,
+      'drive_locatin': _driveLocationController.text,
+      'start_date': _startDate!.toIso8601String(),
+      'end_date': _endDate!.toIso8601String(),
+      'target_donation': int.tryParse(_donationGoalController.text),
+      'volunteer_count': int.tryParse(_volunteerCountController.text),
+      'activity_yesorno': _activityController.text.toLowerCase().contains("activity"),
+      'ngo_name': widget.ngoName,          // ✅ correct
+      'submitted_by': userId,               // ✅ ADD this
+      'status': 'pending',                  // ✅ ADD this
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('QR Code Requested for ${widget.ngoName}')),
+    );
+
+    _formKey.currentState!.reset();
+    _startDateController.clear();
+    _endDateController.clear();
+    _startDate = null;
+    _endDate = null;
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error submitting form: $e')),
+    );
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -195,4 +197,4 @@ class _RequestQRFormScreenState extends State<RequestQRFormScreen> {
       ),
     );
   }
-}
+} 

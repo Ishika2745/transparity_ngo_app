@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'qr_upload_page.dart';
 
 class QrRequestScreen extends StatefulWidget {
   const QrRequestScreen({super.key});
@@ -10,23 +9,73 @@ class QrRequestScreen extends StatefulWidget {
 }
 
 class _QrRequestScreenState extends State<QrRequestScreen> {
-  List<String> firmNames = [];
+  List<Map<String, dynamic>> requests = [];
   bool isLoading = true;
+  String? ngoName;
 
   @override
   void initState() {
     super.initState();
-    fetchSocialFirms();
+    loadNgoNameAndRequests();
   }
 
-  Future<void> fetchSocialFirms() async {
-    final response = await Supabase.instance.client
+  Future<void> loadNgoNameAndRequests() async {
+    final user = Supabase.instance.client.auth.currentUser;
+
+    if (user == null) {
+      // Handle no user logged in
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User not logged in')),
+      );
+      return;
+    }
+
+    // 1. Fetch ngo_name from profiles table
+    final profileResponse = await Supabase.instance.client
         .from('profiles')
-        .select('firm_name')
-        .eq('role', 'social_firm');
+        .select('ngo_name')
+        .eq('id', user.id)
+        .single();
+
+    ngoName = profileResponse['ngo_name'] as String?;
+
+    if (ngoName == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('NGO name not found')),
+      );
+      return;
+    }
+
+    // 2. After getting ngo_name, fetch forms related to this NGO
+    await fetchQrRequests();
+  }
+
+  Future<void> fetchQrRequests() async {
+    final response = await Supabase.instance.client
+        .from('forms')
+        .select('id, drive_purpose, start_date, end_date, submitted_by, status')
+        .eq('ngo_name', ngoName!)   // ngoName will NOT be null now
+        .eq('status', 'pending');
+
+    final List<Map<String, dynamic>> enrichedRequests = [];
+
+    for (var form in response) {
+      final firmId = form['submitted_by'];
+
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('firm_name')
+          .eq('id', firmId)
+          .single();
+
+      enrichedRequests.add({
+        ...form,
+        'firm_name': profile['firm_name'],
+      });
+    }
 
     setState(() {
-      firmNames = response.map<String>((e) => e['firm_name'] as String).toList();
+      requests = enrichedRequests;
       isLoading = false;
     });
   }
@@ -36,83 +85,62 @@ class _QrRequestScreenState extends State<QrRequestScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('QR Code Requests'),
-        backgroundColor: const Color(0xFF004B8D), // Peacock Blue
+        backgroundColor: const Color(0xFF004B8D),
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : firmNames.isEmpty
+          : requests.isEmpty
               ? const Center(child: Text('No QR code requests yet.'))
               : ListView.builder(
                   padding: const EdgeInsets.all(20),
-                  itemCount: firmNames.length,
+                  itemCount: requests.length,
                   itemBuilder: (context, index) {
-                    final firmName = firmNames[index];
+                    final request = requests[index];
+                    final firmName = request['firm_name'] ?? 'Unknown Firm';
+                    final drivePurpose = request['drive_purpose'] ?? 'No Purpose';
+                    final startDate = request['start_date'] ?? '';
+                    final endDate = request['end_date'] ?? '';
+
                     return Card(
                       elevation: 4,
                       margin: const EdgeInsets.symmetric(vertical: 10),
                       child: Padding(
                         padding: const EdgeInsets.all(15.0),
-                        child: Row(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Left Side: Firm Name + Check Details
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    firmName,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  TextButton(
-                                    onPressed: () {
-                                      _showFirmDetails(context, firmName);
-                                    },
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: Colors.blue,
-                                    ),
-                                    child: const Text(
-                                      'Check Details',
-                                      style: TextStyle(fontSize: 16),
-                                    ),
-                                  ),
-                                ],
+                            Text(
+                              firmName,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-
-                            // Right Side: Approve & Reject Buttons (Stacked)
-                            Column(
+                            const SizedBox(height: 8),
+                            Text('Purpose: $drivePurpose'),
+                            Text('Start Date: $startDate'),
+                            Text('End Date: $endDate'),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
                               children: [
                                 ElevatedButton(
                                   onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => QrUploadPage(
-                                          firmName: firmName,
-                                        ),
-                                      ),
-                                    );
+                                    approveRequest(request['id']);
                                   },
                                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                                   child: const Text('Approve', style: TextStyle(color: Colors.white)),
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(width: 10),
                                 ElevatedButton(
                                   onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('$firmName Rejected')),
-                                    );
+                                    rejectRequest(request['id']);
                                   },
                                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                                   child: const Text('Reject', style: TextStyle(color: Colors.white)),
                                 ),
                               ],
-                            ),
+                            )
                           ],
                         ),
                       ),
@@ -122,22 +150,29 @@ class _QrRequestScreenState extends State<QrRequestScreen> {
     );
   }
 
-  // Function to Show Firm Details in a Dialog Box
-  void _showFirmDetails(BuildContext context, String firmName) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Details of $firmName'),
-          content: const Text('Here you can show more details about the firm, such as its mission, past donations, and other relevant info.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
+  Future<void> approveRequest(int formId) async {
+    await Supabase.instance.client
+        .from('forms')
+        .update({'status': 'approved'})
+        .eq('id', formId);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Request Approved')),
     );
+
+    await fetchQrRequests();
+  }
+
+  Future<void> rejectRequest(int formId) async {
+    await Supabase.instance.client
+        .from('forms')
+        .update({'status': 'rejected'})
+        .eq('id', formId);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Request Rejected')),
+    );
+
+    await fetchQrRequests();
   }
 }
