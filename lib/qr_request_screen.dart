@@ -31,112 +31,133 @@ class _QrRequestScreenState extends State<QrRequestScreen> {
   }
 
   Future<void> updateStatus(int id, String status) async {
-  final userId = Supabase.instance.client.auth.currentUser?.id;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
 
-  await Supabase.instance.client
-      .from('forms')
-      .update({
-        'status': status,
-        'reviewed_by': userId,
-        'reviewed_at': DateTime.now().toIso8601String(),
-      })
-      .eq('id', id);
+    await Supabase.instance.client
+        .from('forms')
+        .update({
+      'status': status,
+      'reviewed_by': userId,
+      'reviewed_at': DateTime.now().toIso8601String(),
+    })
+        .eq('id', id);
 
-  fetchRequests(); // Refresh after update
-}
+    fetchRequests(); // Refresh after update
+  }
+  Future<String?> getCurrentUserFirmName() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      throw Exception('User not logged in');
+    }
+    final userId = user.id;
 
-  
+    final response = await Supabase.instance.client
+        .from('profiles') // <-- or your user table
+        .select('firm_name')
+        .eq('id', userId)
+        .single();
+
+    if (response != null && response['firm_name'] != null) {
+      return response['firm_name'] as String;
+    } else {
+      return null;
+    }
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('QR Code Requests'),
-        backgroundColor: const Color(0xFF004B8D), // Your blue
+        backgroundColor: const Color(0xFF004B8D),
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : requests.isEmpty
-              ? const Center(child: Text('No pending requests'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: requests.length,
-                  itemBuilder: (context, index) {
-                    final request = requests[index];
-                    final firmName = request['firm_name'] ?? 'Firm Name';
+          ? const Center(child: Text('No pending requests'))
+          : ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: requests.length,
+        itemBuilder: (context, index) {
+          final request = requests[index];
+          final firmName = (request['firm_name'] != null && request['firm_name'].toString().isNotEmpty)
+              ? request['firm_name']
+              : 'Unnamed Firm'; // Updated fallback
 
-                    return Card(
-                      elevation: 4,
-                      margin: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Left Side
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    firmName,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextButton(
-                                    onPressed: () {
-                                      _showDetailsDialog(context, request);
-                                    },
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: Colors.blue,
-                                    ),
-                                    child: const Text('Check Details'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Right Side (Approve + Reject Buttons)
-                            Column(
-                              children: [
-                                ElevatedButton(
-                                  onPressed: () async {
-                                    await updateStatus(request['id'], 'approved');
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                  ),
-                                  child: const Text('Approve', style: TextStyle(color: Colors.white)),
-                                ),
-                                const SizedBox(height: 8),
-                                ElevatedButton(
-                                  onPressed: () async {
-                                    await updateStatus(request['id'], 'rejected');
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                  ),
-                                  child: const Text('Reject', style: TextStyle(color: Colors.white)),
-                                ),
-                              ],
-                            ),
-                          ],
+          return Card(
+            elevation: 4,
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Left Side
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          firmName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () {
+                            _showDetailsDialog(context, request);
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.blue,
+                          ),
+                          child: const Text('Check Details'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Right Side (Approve + Reject Buttons)
+                  Column(
+                    children: [
+                      ElevatedButton(
+                        onPressed: () async {
+                          await updateStatus(request['id'], 'approved');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: const Text('Approve', style: TextStyle(color: Colors.white)),
                       ),
-                    );
-                  },
-                ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await updateStatus(request['id'], 'rejected');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: const Text('Reject', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 

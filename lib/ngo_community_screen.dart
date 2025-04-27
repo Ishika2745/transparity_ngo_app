@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:typed_data';
+
 
 class NgoCommunityScreen extends StatefulWidget {
   const NgoCommunityScreen({super.key});
@@ -39,7 +41,8 @@ class _NgoCommunityScreenState extends State<NgoCommunityScreen> {
         .from('ngo_profiles')
         .select()
         .eq('id', userId)
-        .single();
+        .maybeSingle();
+
 
     if (response != null) {
       setState(() {
@@ -55,67 +58,84 @@ class _NgoCommunityScreenState extends State<NgoCommunityScreen> {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
 
-    await Supabase.instance.client
+    final existingProfile = await Supabase.instance.client
         .from('ngo_profiles')
-        .update({
-          'name': _nameController.text,
-          'mission': _missionController.text,
-          'contact_info': _contactController.text,
-        })
-        .eq('id', userId);
+        .select()
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (existingProfile == null) {
+      // No profile exists, insert a new one
+      await Supabase.instance.client
+          .from('ngo_profiles')
+          .insert({
+        'id': userId, // important!
+        'name': _nameController.text,
+        'mission': _missionController.text,
+        'contact_info': _contactController.text,
+      });
+    } else {
+      // Profile exists, update it
+      await Supabase.instance.client
+          .from('ngo_profiles')
+          .update({
+        'name': _nameController.text,
+        'mission': _missionController.text,
+        'contact_info': _contactController.text,
+      })
+          .eq('id', userId);
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("NGO Information Updated!")),
+      const SnackBar(content: Text("NGO Information Saved!")),
     );
   }
 
+
   Future<void> _pickAndUploadQRImage() async {
     final picker = ImagePicker();
-
-    // Pick image from gallery
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
     if (pickedFile != null) {
-      _pickedQrImageFile = File(pickedFile.path);
+      final bytes = await pickedFile.readAsBytes();  // <-- get the bytes!
 
-      // Upload the QR image and get the URL
-      final qrUrl = await uploadQRImage(_pickedQrImageFile!);
+      final qrUrl = await uploadQRImage(bytes); // pass bytes instead of File!
 
       if (qrUrl != null) {
-        // Save the QR URL to the database
         await saveQrUrlToDatabase(qrUrl);
-
-        // Update the state with the new QR image URL
         setState(() {
           _qrImageUrl = qrUrl;
         });
 
-        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("QR Image Uploaded Successfully!")),
         );
       }
     } else {
-      // If no image is selected
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("No image selected!")),
       );
     }
   }
 
-  Future<String?> uploadQRImage(File file) async {
+  Future<String?> uploadQRImage(Uint8List fileBytes) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return null;
 
-    final fileName = 'qr_$userId.png';
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = 'qr_${userId}_$timestamp.png';  // <-- now filename is unique!
 
     final storageResponse = await Supabase.instance.client.storage
-        .from('ngo_qr_codes') // Your Supabase Storage bucket name
-        .upload(fileName, file, fileOptions: const FileOptions(upsert: true));
+        .from('ngo-qr-codes')
+        .uploadBinary(
+      fileName,
+      fileBytes,
+      fileOptions: const FileOptions(upsert: true),
+    );
 
     if (storageResponse.isNotEmpty) {
       final publicUrl = Supabase.instance.client.storage
-          .from('ngo_qr_codes')
+          .from('ngo-qr-codes')
           .getPublicUrl(fileName);
       return publicUrl;
     }
@@ -128,9 +148,16 @@ class _NgoCommunityScreenState extends State<NgoCommunityScreen> {
 
     await Supabase.instance.client
         .from('ngo_profiles')
-        .update({'qr_image_url': qrUrl})
-        .eq('id', userId);
+        .upsert({
+      'id': userId,
+      'name': _nameController.text.isNotEmpty ? _nameController.text : 'Default Name',
+      'mission': _missionController.text.isNotEmpty ? _missionController.text : 'Default Mission',
+      'contact_info': _contactController.text.isNotEmpty ? _contactController.text : 'Default Contact',
+      'qr_image_url': qrUrl,
+    }, onConflict: 'id');
   }
+
+
 
   @override
   Widget build(BuildContext context) {
