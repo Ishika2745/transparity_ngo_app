@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NgoCommunityScreen extends StatefulWidget {
   const NgoCommunityScreen({super.key});
@@ -8,14 +11,19 @@ class NgoCommunityScreen extends StatefulWidget {
 }
 
 class _NgoCommunityScreenState extends State<NgoCommunityScreen> {
-  final TextEditingController _nameController =
-  TextEditingController(text: "Transparity NGO");
-  final TextEditingController _missionController = TextEditingController(
-      text: "Our mission is to bring transparency in NGO donations.");
-  final TextEditingController _contactController =
-  TextEditingController(text: "contact@transparity.org");
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _missionController = TextEditingController();
+  final TextEditingController _contactController = TextEditingController();
 
   bool _isEditing = false;
+  String? _qrImageUrl;
+  File? _pickedQrImageFile;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchNgoProfile();
+  }
 
   void _toggleEditing() {
     setState(() {
@@ -23,69 +31,196 @@ class _NgoCommunityScreenState extends State<NgoCommunityScreen> {
     });
   }
 
+  Future<void> fetchNgoProfile() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    final response = await Supabase.instance.client
+        .from('ngo_profiles')
+        .select()
+        .eq('id', userId)
+        .single();
+
+    if (response != null) {
+      setState(() {
+        _nameController.text = response['name'] ?? '';
+        _missionController.text = response['mission'] ?? '';
+        _contactController.text = response['contact_info'] ?? '';
+        _qrImageUrl = response['qr_image_url'];
+      });
+    }
+  }
+
+  Future<void> saveProfileChanges() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    await Supabase.instance.client
+        .from('ngo_profiles')
+        .update({
+          'name': _nameController.text,
+          'mission': _missionController.text,
+          'contact_info': _contactController.text,
+        })
+        .eq('id', userId);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("NGO Information Updated!")),
+    );
+  }
+
+  Future<void> _pickAndUploadQRImage() async {
+    final picker = ImagePicker();
+
+    // Pick image from gallery
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      _pickedQrImageFile = File(pickedFile.path);
+
+      // Upload the QR image and get the URL
+      final qrUrl = await uploadQRImage(_pickedQrImageFile!);
+
+      if (qrUrl != null) {
+        // Save the QR URL to the database
+        await saveQrUrlToDatabase(qrUrl);
+
+        // Update the state with the new QR image URL
+        setState(() {
+          _qrImageUrl = qrUrl;
+        });
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("QR Image Uploaded Successfully!")),
+        );
+      }
+    } else {
+      // If no image is selected
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No image selected!")),
+      );
+    }
+  }
+
+  Future<String?> uploadQRImage(File file) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return null;
+
+    final fileName = 'qr_$userId.png';
+
+    final storageResponse = await Supabase.instance.client.storage
+        .from('ngo_qr_codes') // Your Supabase Storage bucket name
+        .upload(fileName, file, fileOptions: const FileOptions(upsert: true));
+
+    if (storageResponse.isNotEmpty) {
+      final publicUrl = Supabase.instance.client.storage
+          .from('ngo_qr_codes')
+          .getPublicUrl(fileName);
+      return publicUrl;
+    }
+    return null;
+  }
+
+  Future<void> saveQrUrlToDatabase(String qrUrl) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    await Supabase.instance.client
+        .from('ngo_profiles')
+        .update({'qr_image_url': qrUrl})
+        .eq('id', userId);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                "NGO Information",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              IconButton(
-                icon: Icon(
-                  _isEditing ? Icons.save : Icons.edit,
-                  color: Colors.blue,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("NGO Community"),
+        backgroundColor: const Color(0xFF004B8D),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: ListView(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "NGO Information",
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
-                onPressed: _toggleEditing,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // NGO Name Field
-          TextField(
-            controller: _nameController,
-            enabled: _isEditing,
-            decoration: const InputDecoration(labelText: "NGO Name"),
-          ),
-          const SizedBox(height: 10),
-
-          // NGO Mission Field
-          TextField(
-            controller: _missionController,
-            enabled: _isEditing,
-            decoration: const InputDecoration(labelText: "Mission"),
-            maxLines: 3,
-          ),
-          const SizedBox(height: 10),
-
-          // NGO Contact Info Field
-          TextField(
-            controller: _contactController,
-            enabled: _isEditing,
-            decoration: const InputDecoration(labelText: "Contact Info"),
-          ),
-
-          const SizedBox(height: 20),
-
-          ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("NGO Information Updated!")),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF004B8D), // Peacock Blue
+                IconButton(
+                  icon: Icon(
+                    _isEditing ? Icons.save : Icons.edit,
+                    color: Colors.blue,
+                  ),
+                  onPressed: () async {
+                    if (_isEditing) {
+                      await saveProfileChanges();
+                    }
+                    _toggleEditing();
+                  },
+                ),
+              ],
             ),
-            child: const Text("Save Changes", style: TextStyle(color: Colors.white)),
-          ),
-        ],
+            const SizedBox(height: 10),
+
+            // NGO Name Field
+            TextField(
+              controller: _nameController,
+              enabled: _isEditing,
+              decoration: const InputDecoration(labelText: "NGO Name"),
+            ),
+            const SizedBox(height: 10),
+
+            // NGO Mission Field
+            TextField(
+              controller: _missionController,
+              enabled: _isEditing,
+              decoration: const InputDecoration(labelText: "Mission"),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 10),
+
+            // NGO Contact Info Field
+            TextField(
+              controller: _contactController,
+              enabled: _isEditing,
+              decoration: const InputDecoration(labelText: "Contact Info"),
+            ),
+
+            const SizedBox(height: 20),
+
+            ElevatedButton(
+              onPressed: _pickAndUploadQRImage,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+              ),
+              child: const Text("Upload QR Image", style: TextStyle(color: Colors.white)),
+            ),
+
+            const SizedBox(height: 20),
+
+            if (_qrImageUrl != null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Uploaded QR Image:",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  Image.network(
+                    _qrImageUrl!,
+                    height: 200,
+                    width: 200,
+                    fit: BoxFit.cover,
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
