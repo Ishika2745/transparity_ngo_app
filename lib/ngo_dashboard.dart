@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'donations_screen.dart';
 import 'ngo_community_screen.dart';
 import 'home_page.dart';
+import 'faq_screen.dart'; // <-- Import the new FAQ screen
 
 class NgoDashboardScreen extends StatefulWidget {
   const NgoDashboardScreen({super.key});
@@ -19,7 +20,6 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
     const NgoCommunityScreen(),
   ];
 
-
   void _onNavItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -36,16 +36,15 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
       drawer: _buildSideDrawer(context),
       appBar: AppBar(
         title: Row(
-          children: [
-
-            const SizedBox(width: 10),
-            const Text(
+          children: const [
+            SizedBox(width: 10),
+            Text(
               'Transparity',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF004B8D), // Peacock Blue
+        backgroundColor: const Color(0xFF004B8D),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications, color: Colors.white),
@@ -55,9 +54,7 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
           ),
         ],
       ),
-      body: _pages[_selectedIndex], // Change screens dynamically
-
-      // Bottom Navigation Bar
+      body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF004B8D),
         selectedItemColor: Colors.white,
@@ -97,12 +94,22 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
               color: Color(0xFF004B8D),
             ),
           ),
-          _buildDrawerButton(context, Icons.history, "History"),
-          _buildDrawerButton(context, Icons.help, "Help & FAQ"),
+          // History Button - Go to Donations
+          _buildDrawerButton(context, Icons.history, "History", () {
+            Navigator.pop(context);
+            _onNavItemTapped(0); // Go to Donations page
+          }),
+          // FAQ Button - Open new FAQ screen
+          _buildDrawerButton(context, Icons.help, "Help & FAQ", () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const FaqScreen()),
+            );
+          }),
+          const Spacer(),
 
-          const Spacer(), // Push Logout Button to Bottom
-
-          // Logout Button at Bottom
+          // Logout Button
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 15),
             child: ElevatedButton(
@@ -110,7 +117,7 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                 _logout(context);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red, // Red logout button
+                backgroundColor: Colors.red,
                 padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -131,22 +138,17 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
     );
   }
 
-// Logout Function
   void _logout(BuildContext context) {
-    Navigator.pushReplacementNamed(context, '/login'); // Navigate to login page
+    Navigator.pushReplacementNamed(context, '/login');
   }
 
-
-  Widget _buildDrawerButton(BuildContext context, IconData icon, String title) {
+  Widget _buildDrawerButton(BuildContext context, IconData icon, String title, VoidCallback onPressed) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 15),
       child: ElevatedButton(
-        onPressed: () {
-          Navigator.pop(context); // Close drawer
-          // TODO: Add navigation logic for respective pages
-        },
+        onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFF004B8D),
+          backgroundColor: const Color(0xFF004B8D),
           padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),

@@ -69,8 +69,6 @@ class _FirmDashboardScreenState extends State<FirmDashboardScreen> {
             decoration: const BoxDecoration(color: Color(0xFF004B8D)),
           ),
           _buildDrawerButton(context, Icons.history, "History"),
-          _buildDrawerButton(context, Icons.event, "Activity"),
-          _buildDrawerButton(context, Icons.settings, "Settings"),
           _buildDrawerButton(context, Icons.help, "Help & FAQ"),
           const Spacer(),
           Padding(

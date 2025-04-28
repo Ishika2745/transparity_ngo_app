@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'donation_history_page.dart'; // <-- Import the new page
 
 class FirmDonationScreen extends StatefulWidget {
   const FirmDonationScreen({Key? key}) : super(key: key);
@@ -33,16 +34,15 @@ class _FirmDonationScreenState extends State<FirmDonationScreen> {
   Future<String?> fetchNGOQrImage(String ngoName) async {
     final response = await Supabase.instance.client
         .from('ngo_profiles')
-        .select('qr_image_url') // <-- FIXED
+        .select('qr_image_url')
         .eq('name', ngoName)
         .maybeSingle();
 
-    if (response != null && response['qr_image_url'] != null) { // <-- FIXED
+    if (response != null && response['qr_image_url'] != null) {
       return response['qr_image_url'] as String;
     }
     return null;
   }
-
 
   void _showQRDialog(BuildContext context, String qrImageUrl) {
     showDialog(
@@ -65,7 +65,6 @@ class _FirmDonationScreenState extends State<FirmDonationScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -76,48 +75,67 @@ class _FirmDonationScreenState extends State<FirmDonationScreen> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
-        itemCount: donations.length,
-        itemBuilder: (context, index) {
-          final donation = donations[index];
-          return Card(
-            margin: const EdgeInsets.all(10),
-            child: ListTile(
-              title: Text('Firm: ${donation['firm_name'] ?? "Unknown"}'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('NGO: ${donation['ngo_name'] ?? "Unknown"}'),
-                  Text('Target Donation: ₹${donation['target_donation'] ?? 0}'),
-                ],
-              ),
-              trailing: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                ),
-                child: const Text('See QR'),
-                  onPressed: () async {
-                    final ngoName = donation['ngo_name'];
-                    print('Clicked See QR for NGO: $ngoName'); // 👈 Add print
-
-                    if (ngoName != null) {
-                      final qrUrl = await fetchNGOQrImage(ngoName);
-                      print('Fetched QR URL: $qrUrl'); // 👈 Add print
-
-                      if (qrUrl != null) {
-                        _showQRDialog(context, qrUrl);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('QR Code not found for this NGO.')),
-                        );
-                      }
-                    }
-                  }
-
-              ),
+              itemCount: donations.length,
+              itemBuilder: (context, index) {
+                final donation = donations[index];
+                return Card(
+                  margin: const EdgeInsets.all(10),
+                  child: ListTile(
+                    title: Text('Firm: ${donation['firm_name'] ?? "Unknown"}'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('NGO: ${donation['ngo_name'] ?? "Unknown"}'),
+                        Text('Target Donation: ₹${donation['target_donation'] ?? 0}'),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                          ),
+                          child: const Text('See QR'),
+                          onPressed: () async {
+                            final ngoName = donation['ngo_name'];
+                            if (ngoName != null) {
+                              final qrUrl = await fetchNGOQrImage(ngoName);
+                              if (qrUrl != null) {
+                                _showQRDialog(context, qrUrl);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('QR Code not found for this NGO.')),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                          ),
+                          child: const Text('Proof'),
+                          onPressed: () {
+                            final firmName = donation['firm_name'];
+                            if (firmName != null) {
+                              // Navigate to DonationHistoryPage
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => DonationHistoryPage(firmName: firmName),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }

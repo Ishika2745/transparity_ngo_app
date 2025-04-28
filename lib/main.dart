@@ -7,6 +7,8 @@ import 'package:transparity_app/signup_page.dart';
 import 'package:transparity_app/ngo_dashboard.dart';
 import 'package:transparity_app/social_firm_pages/firm_info_screen.dart';
 import 'package:transparity_app/social_firm_pages/ngo_view_forms.dart'; // ✅ Import the new screen
+import 'package:transparity_app/faq_screen.dart'; // ✅ Newly added import for FAQ screen
+import 'package:transparity_app/social_firm_pages/donation_history_page.dart'; // Import the DonationHistoryPage
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +39,7 @@ class _MyAppState extends State<MyApp> {
     _checkUserSession(); // ✅ Check session on app start
   }
 
-  // ✅ **Check if the user is logged in and fetch role**
+  // ✅ Check if the user is logged in and fetch role
   Future<void> _checkUserSession() async {
     final session = supabase.auth.currentSession;
 
@@ -50,14 +52,14 @@ class _MyAppState extends State<MyApp> {
     final userId = user.id;
     print("✅ Logged-in User: $userId");
 
-    // ✅ **Ensure email is verified**
+    // ✅ Ensure email is verified
     if (user.emailConfirmedAt == null) {
       print("⚠️ Email not verified. Redirecting to login.");
       supabase.auth.signOut();
       return;
     }
 
-    // ✅ **Fetch user role from profiles table**
+    // ✅ Fetch user role from profiles table
     final userData = await supabase
         .from('profiles')
         .select('role')
@@ -89,7 +91,7 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       title: 'Transparity App',
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: _initialScreen, // ✅ **Starts with the correct screen**
+      home: _initialScreen, // ✅ Starts with the correct screen
       routes: {
         '/login': (context) => LoginPage(),
         '/signup': (context) => SignUpPage(),
@@ -97,7 +99,9 @@ class _MyAppState extends State<MyApp> {
         '/ngo_dashboard': (context) => const NgoDashboardScreen(),
         '/firm_dashboard': (context) => const FirmDashboardScreen(),
         '/firm_info': (context) => FirmInfoScreen(),
-        '/ngo_view_forms': (context) => const NGOViewFormsScreen(), // ✅ Add the new route
+        '/ngo_view_forms': (context) => const NGOViewFormsScreen(),
+        '/faq': (context) => const FaqScreen(), // ✅ Newly added FAQ route
+        '/donation_history': (context) => const DonationHistoryPage(firmName: '',), // ✅ Add route for DonationHistoryPage
       },
     );
   }
