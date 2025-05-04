@@ -1,0 +1,20 @@
+{
+  "buildFiles": [
+    "/Users/manasighalsasi/development/flutter/packages/flutter_tools/gradle/src/main/groovy/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/manasighalsasi/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/Users/manasighalsasi/Desktop/transparity_ngo_app/android/app/.cxx/RelWithDebInfo/6ys3f265/armeabi-v7a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/manasighalsasi/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/Users/manasighalsasi/Desktop/transparity_ngo_app/android/app/.cxx/RelWithDebInfo/6ys3f265/armeabi-v7a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {}
+}

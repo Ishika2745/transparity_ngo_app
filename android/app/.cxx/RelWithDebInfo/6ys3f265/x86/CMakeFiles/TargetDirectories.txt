@@ -1,0 +1,2 @@
+/Users/manasighalsasi/Desktop/transparity_ngo_app/android/app/.cxx/RelWithDebInfo/6ys3f265/x86/CMakeFiles/edit_cache.dir
+/Users/manasighalsasi/Desktop/transparity_ngo_app/android/app/.cxx/RelWithDebInfo/6ys3f265/x86/CMakeFiles/rebuild_cache.dir
